@@ -166,6 +166,29 @@ python -m src.tabstruct.experiment.run_experiment \
 
 </details>
 
+## Local extracted datasets
+
+If you extract a dataset bundle such as `DATA.zip` into a folder like `DATA/`, TabStruct can load the following dataset names directly from that extracted directory structure:
+
+- `diabetes`
+- `house`
+- `income`
+- `sick`
+- `us_location`
+
+Each dataset folder is expected to contain `train.csv` and `test.csv`. TabStruct will keep the provided test split and carve validation data out of `train.csv`.
+
+```bash
+python -m src.tabstruct.experiment.run_experiment \
+  --model knn \
+  --dataset income \
+  --dataset_root /path/to/DATA \
+  --valid_size 0.1 \
+  --tags local-data
+```
+
+For `house`, the task is set to regression automatically. The other four datasets are treated as classification tasks.
+
 ## 📖 Citation
 
 For attribution in academic contexts, please cite this work as:

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import wandb
@@ -11,6 +13,29 @@ from .DataModule import DataModule
 
 class DataHelper:
     """Helper class to prepare data"""
+
+    LOCAL_DATASET_CONFIG = {
+        "diabetes": {
+            "target_col": "Diabetes",
+            "task": "classification",
+        },
+        "house": {
+            "target_col": "median_house_value",
+            "task": "regression",
+        },
+        "income": {
+            "target_col": "income",
+            "task": "classification",
+        },
+        "sick": {
+            "target_col": "Class",
+            "task": "classification",
+        },
+        "us_location": {
+            "target_col": "lat_zone",
+            "task": "classification",
+        },
+    }
 
     # ================================================================
     # =                                                              =
@@ -26,7 +51,7 @@ class DataHelper:
         data_info_dict = cls.log_data_properties(args, dataset_dict_original, {}, stage="original")
 
         # === Split the dataset ===
-        split_dict = cls.split_full_dataset(args, dataset_dict_original["full_set"])
+        split_dict = cls.split_full_dataset(args, dataset_dict_original)
         data_info_dict = cls.log_data_properties(args, split_dict, data_info_dict, stage="split")
 
         # === Process the dataset ===
@@ -214,8 +239,79 @@ class DataHelper:
     # =                       Data loading                           =
     # =                                                              =
     # ================================================================
+    @classmethod
+    def resolve_local_dataset_dir(cls, args) -> Path | None:
+        dataset_name = Path(args.dataset).name
+        search_roots = []
+
+        if getattr(args, "dataset_root", None):
+            search_roots.append(Path(args.dataset_root))
+
+        search_roots.extend(
+            [
+                Path.cwd(),
+                Path.cwd() / "DATA",
+                Path.cwd() / "data",
+                Path.home() / "Downloads",
+                Path.home() / "Downloads" / "DATA",
+            ]
+        )
+
+        dataset_path = Path(args.dataset).expanduser()
+        if dataset_path.exists() and dataset_path.is_dir():
+            return dataset_path
+
+        for root in search_roots:
+            candidate = root / dataset_name
+            if (candidate / "train.csv").exists() and (candidate / "test.csv").exists():
+                return candidate
+
+        return None
+
+    @classmethod
+    def load_local_dataset(cls, args, dataset_dir: Path) -> dict:
+        dataset_name = Path(args.dataset).name
+        if dataset_name not in cls.LOCAL_DATASET_CONFIG:
+            raise ValueError(
+                f"Unsupported local dataset '{dataset_name}'. "
+                f"Supported local datasets: {sorted(cls.LOCAL_DATASET_CONFIG.keys())}"
+            )
+
+        dataset_config = cls.LOCAL_DATASET_CONFIG[dataset_name]
+        target_col = dataset_config["target_col"]
+        train_df = pd.read_csv(dataset_dir / "train.csv")
+        test_df = pd.read_csv(dataset_dir / "test.csv")
+        full_df = pd.concat([train_df, test_df], axis=0, ignore_index=True)
+        constant_cols = [
+            col for col in full_df.columns if col != target_col and full_df[col].nunique(dropna=False) <= 1
+        ]
+        if constant_cols:
+            train_df = train_df.drop(columns=constant_cols)
+            test_df = test_df.drop(columns=constant_cols)
+            full_df = full_df.drop(columns=constant_cols)
+
+        def build_dataset(data_df: pd.DataFrame) -> TabularDataset:
+            return TabularDataset(
+                dataset_name=dataset_name,
+                task_type=args.task,
+                target_col=target_col,
+                data_df=data_df,
+            )
+
+        return {
+            "full_set": build_dataset(full_df),
+            "train_set": build_dataset(train_df),
+            "test_set": build_dataset(test_df),
+            "predefined_split": True,
+            "dataset_dir": str(dataset_dir),
+        }
+
     @staticmethod
     def load_dataset(args) -> dict:
+        dataset_dir = DataHelper.resolve_local_dataset_dir(args)
+        if dataset_dir is not None:
+            return DataHelper.load_local_dataset(args, dataset_dir)
+
         full_set = TabularDataset(
             dataset_name=args.dataset,
             task_type=args.task,
@@ -247,6 +343,30 @@ class DataHelper:
     # ================================================================
     @staticmethod
     def split_full_dataset(args, full_set) -> dict:
+        if isinstance(full_set, dict):
+            dataset_dict = full_set
+            train_val_set = dataset_dict["train_set"]
+            test_set = dataset_dict["test_set"]
+
+            split_dict_val = train_val_set.split(
+                split_mode=args.split_mode,
+                test_size=args.valid_size,
+                random_state=args.valid_id,
+            )
+            train_set, valid_set = split_dict_val["train_set"], split_dict_val["test_set"]
+            indices_train, indices_valid = split_dict_val["indices_train"], split_dict_val["indices_test"]
+            indices_test = dataset_dict["test_set"].data_df.index.to_numpy()
+
+            return {
+                "full_set": dataset_dict["full_set"],
+                "train_set": train_set,
+                "valid_set": valid_set,
+                "test_set": test_set,
+                "indices_train": indices_train,
+                "indices_valid": indices_valid,
+                "indices_test": indices_test,
+            }
+
         # ===== Split the dataset into Train/Val/Test =====
         split_dict_test = full_set.split(
             split_mode=args.split_mode,

@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 from typing import Union
 
 import numpy as np
@@ -8,6 +9,15 @@ from ... import WANDB_ENTITY, WANDB_PROJECT, generator_list, model_to_do_list, p
 from ...runtime.error.ManualStopError import ManualStopError
 from ..log.TerminalIO import TerminalIO
 from ..log.WandbHelper import WandbHelper
+
+
+LOCAL_DATASET_TASKS = {
+    "diabetes": "classification",
+    "house": "regression",
+    "income": "classification",
+    "sick": "classification",
+    "us_location": "classification",
+}
 
 
 class AddOnlyNamespace(argparse.Namespace):
@@ -177,6 +187,12 @@ def add_dataset_setup(parser: argparse.ArgumentParser) -> argparse.ArgumentParse
     """
     # ===== Dataset =====
     parser.add_argument("--dataset", type=str, required=True)
+    parser.add_argument(
+        "--dataset_root",
+        type=str,
+        default=None,
+        help="Root directory containing extracted local datasets such as DATA/<dataset>/train.csv and test.csv",
+    )
     parser.add_argument("--min_sample_per_class", type=int, default=None, help="minimum number of samples per class")
     parser.add_argument("--drop_class_id", type=str, default=None, help="class id (in original dataset) to drop")
 
@@ -498,6 +514,11 @@ def add_reg_test_setup(parser: argparse.ArgumentParser) -> argparse.ArgumentPars
 # =                                                              =
 # ================================================================
 def cross_update(args):
+    dataset_name = Path(args.dataset).name
+
+    if dataset_name in LOCAL_DATASET_TASKS and args.task != LOCAL_DATASET_TASKS[dataset_name]:
+        args.task = LOCAL_DATASET_TASKS[dataset_name]
+
     # === When test_size and valid_size are bigger than 1, they are considered as the number of samples ===
     if args.test_size > 1:
         args.test_size = int(args.test_size)
