@@ -198,11 +198,14 @@ class BaseOfficialRepoGenerator(BaseMixedGenerator):
         result = subprocess.run(
             cmd,
             cwd=self.repo_root,
+            text=True,
+            capture_output=True,
             check=False,
         )
         if result.returncode != 0:
+            output_tail = "\n".join((result.stdout + "\n" + result.stderr).splitlines()[-60:])
             raise ManualStopError(
-                f"{self.args.model} failed during {stage} with exit code {result.returncode}."
+                f"{self.args.model} failed during {stage} with exit code {result.returncode}.\n{output_tail}"
             )
 
     def _train_external_model(self):
