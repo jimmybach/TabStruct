@@ -27,8 +27,8 @@ SINGLE_RUN_TIMEOUT = 3600 * 2
 # =                                                              =
 # ================================================================
 # change the name to launch a new W&B project
-WANDB_ENTITY = "tabular-foundation-model"
-WANDB_PROJECT = "Euphratica-dev"
+WANDB_ENTITY = "jpbach-william-mary"
+WANDB_PROJECT = "TabStruct"
 
 # ================================================================
 # =                                                              =
