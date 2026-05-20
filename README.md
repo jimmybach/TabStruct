@@ -189,6 +189,77 @@ python -m src.tabstruct.experiment.run_experiment \
 
 For `house`, the task is set to regression automatically. The other four datasets are treated as classification tasks.
 
+## Optional TabSyn and TabDiff support
+
+This codebase can also call the official `TabSyn` and `TabDiff` repositories as optional external generators.
+
+- `tabsyn` expects a local clone of the official TabSyn repo.
+- `tabdiff` expects a local clone of the official TabDiff repo.
+
+You can pass the repo paths directly:
+
+```bash
+python -m src.tabstruct.experiment.run_experiment \
+  --pipeline generation \
+  --model tabsyn \
+  --dataset income \
+  --dataset_root /path/to/DATA \
+  --tabsyn_repo_root /path/to/tabsyn \
+  --tabsyn_python_bin /path/to/tabsyn-env/bin/python
+```
+
+```bash
+python -m src.tabstruct.experiment.run_experiment \
+  --pipeline generation \
+  --model tabdiff \
+  --dataset income \
+  --dataset_root /path/to/DATA \
+  --tabdiff_repo_root /path/to/TabDiff \
+  --tabdiff_python_bin /path/to/tabdiff-env/bin/python
+```
+
+Environment variables are also supported:
+
+- `TABSYN_REPO_ROOT`, `TABSYN_PYTHON_BIN`
+- `TABDIFF_REPO_ROOT`, `TABDIFF_PYTHON_BIN`
+
+TabStruct exports the current dataset split into the official repo format, trains the external model there, then pulls the generated samples back into the normal TabStruct evaluation pipeline.
+
+### Colab-friendly usage
+
+In Colab, the simplest layout is:
+
+- `/content/TabStruct`
+- `/content/tabsyn`
+- `/content/TabDiff`
+
+When the official repos are cloned into those default locations, TabStruct can auto-detect them, and `--tabsyn_python_bin` / `--tabdiff_python_bin` can be omitted because the current notebook Python is used by default.
+
+```bash
+git clone https://github.com/amazon-science/tabsyn /content/tabsyn
+git clone https://github.com/MinkaiXu/TabDiff /content/TabDiff
+```
+
+Then you can run:
+
+```bash
+python -m src.tabstruct.experiment.run_experiment \
+  --pipeline generation \
+  --model tabsyn \
+  --dataset income \
+  --dataset_root /content/TabStruct/data \
+  --valid_size 0.1
+```
+
+```bash
+python -m src.tabstruct.experiment.run_experiment \
+  --pipeline generation \
+  --model tabdiff \
+  --dataset income \
+  --dataset_root /content/TabStruct/data \
+  --valid_size 0.1
+```
+
 ## 📖 Citation
 
 For attribution in academic contexts, please cite this work as:

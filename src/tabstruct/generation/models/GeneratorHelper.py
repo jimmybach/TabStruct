@@ -65,6 +65,14 @@ class GeneratorHelper(BaseModelHelper):
                 from .synth.GReaT import GReaT
 
                 model_class = GReaT
+            case "tabsyn":
+                from .custom.TabSyn import TabSyn
+
+                model_class = TabSyn
+            case "tabdiff":
+                from .custom.TabDiff import TabDiff
+
+                model_class = TabDiff
             case _:
                 raise NotImplementedError(f"Model {model} is not implemented.")
 

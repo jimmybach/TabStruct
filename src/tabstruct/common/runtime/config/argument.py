@@ -401,6 +401,30 @@ def add_generation_setup(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         default=1,
         help="#Synthetic : #Real samples to generate",
     )
+    parser.add_argument(
+        "--tabsyn_repo_root",
+        type=str,
+        default=None,
+        help="Path to a local clone of the official TabSyn repository",
+    )
+    parser.add_argument(
+        "--tabsyn_python_bin",
+        type=str,
+        default=None,
+        help="Python executable to use when running the official TabSyn repository",
+    )
+    parser.add_argument(
+        "--tabdiff_repo_root",
+        type=str,
+        default=None,
+        help="Path to a local clone of the official TabDiff repository",
+    )
+    parser.add_argument(
+        "--tabdiff_python_bin",
+        type=str,
+        default=None,
+        help="Python executable to use when running the official TabDiff repository",
+    )
     parser.add_argument("--synthetic_data_path", type=str, default=None, help="path to load the synthetic data")
     parser.add_argument("--generation_only", action="store_true", help="Only generate synthetic data, do not evaluate")
     parser.set_defaults(generation_only=False)

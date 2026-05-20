@@ -426,6 +426,7 @@ class BaseMixedGenerator(BaseGenerator):
         }
 
     def _generate(self, class2synthetic_samples):
+        self.num_samples_per_generation_run = sum(class2synthetic_samples.values())
         patience = 0
         X_syn_df = pd.DataFrame()
         y_syn_df = pd.DataFrame()

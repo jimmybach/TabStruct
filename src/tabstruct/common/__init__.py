@@ -70,6 +70,9 @@ generator_list = [
     "arf",
     "nflow",
     "great",
+    # official external repos
+    "tabsyn",
+    "tabdiff",
 ]
 
 unstable_generator_list = [
