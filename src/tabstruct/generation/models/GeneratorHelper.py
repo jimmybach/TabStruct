@@ -139,7 +139,7 @@ class GeneratorHelper(BaseModelHelper):
     @staticmethod
     def load_synthetic_data(args, synthetic_data_path):
         # === Load the synthetic samples ===
-        synthetic_df = pd.read_csv(synthetic_data_path, nrows=1)
+        synthetic_df = pd.read_csv(synthetic_data_path)
         synthetic_target_col = args.full_target_col_original
         if synthetic_target_col not in synthetic_df.columns and "target" in synthetic_df.columns:
             synthetic_target_col = "target"
@@ -149,6 +149,19 @@ class GeneratorHelper(BaseModelHelper):
             target_meta = synthetic_col2type.pop(args.full_target_col_original, None)
             if target_meta is not None:
                 synthetic_col2type[synthetic_target_col] = target_meta
+
+        expected_cols = list(synthetic_col2type.keys())
+        extra_cols = [col for col in synthetic_df.columns if col not in expected_cols]
+        if extra_cols:
+            synthetic_df = synthetic_df.drop(columns=extra_cols)
+
+        missing_cols = [col for col in expected_cols if col not in synthetic_df.columns]
+        if missing_cols:
+            raise ValueError(
+                f"Synthetic file {synthetic_data_path} is missing required columns after metadata alignment: {missing_cols}"
+            )
+
+        synthetic_df = synthetic_df[expected_cols]
 
         print("[DEBUG] synthetic_data_path:", synthetic_data_path)
         print("[DEBUG] args.full_target_col_original:", args.full_target_col_original)
@@ -161,6 +174,7 @@ class GeneratorHelper(BaseModelHelper):
             dataset_name=synthetic_data_path,
             task_type=args.task,
             target_col=synthetic_target_col,
+            data_df=synthetic_df,
             metafeature_dict={
                 "col2type": synthetic_col2type,
             },
