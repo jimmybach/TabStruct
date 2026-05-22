@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import wandb
 from tabcamel.data.dataset import TabularDataset
 
@@ -138,13 +139,24 @@ class GeneratorHelper(BaseModelHelper):
     @staticmethod
     def load_synthetic_data(args, synthetic_data_path):
         # === Load the synthetic samples ===
+        synthetic_df = pd.read_csv(synthetic_data_path, nrows=1)
+        synthetic_target_col = args.full_target_col_original
+        if synthetic_target_col not in synthetic_df.columns and "target" in synthetic_df.columns:
+            synthetic_target_col = "target"
+
+        synthetic_col2type = dict(args.full_feature_col2type_original)
+        if synthetic_target_col != args.full_target_col_original:
+            target_meta = synthetic_col2type.pop(args.full_target_col_original, None)
+            if target_meta is not None:
+                synthetic_col2type[synthetic_target_col] = target_meta
+
         # Ensure the synthetic data goes through all meta-processing and preprocessing steps
         synthetic_dataset = TabularDataset(
             dataset_name=synthetic_data_path,
             task_type=args.task,
-            target_col=args.full_target_col_original,
+            target_col=synthetic_target_col,
             metafeature_dict={
-                "col2type": args.full_feature_col2type_original,
+                "col2type": synthetic_col2type,
             },
         )
         # Subsample the synthetic data to align with data curation
@@ -155,7 +167,9 @@ class GeneratorHelper(BaseModelHelper):
         synthetic_dataset = sample_dict["dataset_sampled"]
         synthetic_data_df = synthetic_dataset.data_df
         X_syn_original = synthetic_data_df[args.full_feature_col_list_original]
-        y_syn_original = synthetic_data_df[[args.full_target_col_original]]
+        y_syn_original = synthetic_data_df[[synthetic_target_col]].rename(
+            columns={synthetic_target_col: args.full_target_col_original}
+        )
         X_syn = X_syn_original.copy(deep=True)
         y_syn = y_syn_original.copy(deep=True)
 
