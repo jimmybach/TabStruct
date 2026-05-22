@@ -150,6 +150,12 @@ class GeneratorHelper(BaseModelHelper):
             if target_meta is not None:
                 synthetic_col2type[synthetic_target_col] = target_meta
 
+        print("[DEBUG] synthetic_data_path:", synthetic_data_path)
+        print("[DEBUG] args.full_target_col_original:", args.full_target_col_original)
+        print("[DEBUG] detected synthetic_target_col:", synthetic_target_col)
+        print("[DEBUG] synthetic_df columns:", list(synthetic_df.columns))
+        print("[DEBUG] synthetic_col2type keys:", list(synthetic_col2type.keys()))
+
         # Ensure the synthetic data goes through all meta-processing and preprocessing steps
         synthetic_dataset = TabularDataset(
             dataset_name=synthetic_data_path,
