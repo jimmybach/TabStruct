@@ -35,6 +35,62 @@ class DataHelper:
             "target_col": "lat_zone",
             "task": "classification",
         },
+        "credit": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "bank_marketing": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "adult": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "agrawal": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "sea": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "gas_sensor": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "gaussian_mixture": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "stagger": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "hyperplane": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "mixed": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "sine": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "electricity": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "covertype": {
+            "target_col": "y",
+            "task": "classification",
+        },
+        "magic_telescope": {
+            "target_col": "y",
+            "task": "classification",
+        },
     }
 
     # ================================================================
@@ -265,11 +321,26 @@ class DataHelper:
             candidate = root / dataset_name
             if (candidate / "train.csv").exists() and (candidate / "test.csv").exists():
                 return candidate
+            if candidate.is_dir() and cls.find_single_dataset_csv(candidate) is not None:
+                return candidate
 
         return None
 
     @classmethod
-    def load_local_dataset(cls, args, dataset_dir: Path) -> dict:
+    def find_single_dataset_csv(cls, dataset_dir: Path) -> Path | None:
+        csv_candidates = []
+        for csv_path in sorted(dataset_dir.glob("*.csv")):
+            if csv_path.name in {"train.csv", "test.csv"}:
+                continue
+            csv_candidates.append(csv_path)
+
+        if len(csv_candidates) == 1:
+            return csv_candidates[0]
+
+        return None
+
+    @classmethod
+    def load_local_dataset(cls, args, dataset_dir: Path):
         dataset_name = Path(args.dataset).name
         if dataset_name not in cls.LOCAL_DATASET_CONFIG:
             raise ValueError(
@@ -279,16 +350,6 @@ class DataHelper:
 
         dataset_config = cls.LOCAL_DATASET_CONFIG[dataset_name]
         target_col = dataset_config["target_col"]
-        train_df = pd.read_csv(dataset_dir / "train.csv")
-        test_df = pd.read_csv(dataset_dir / "test.csv")
-        full_df = pd.concat([train_df, test_df], axis=0, ignore_index=True)
-        constant_cols = [
-            col for col in full_df.columns if col != target_col and full_df[col].nunique(dropna=False) <= 1
-        ]
-        if constant_cols:
-            train_df = train_df.drop(columns=constant_cols)
-            test_df = test_df.drop(columns=constant_cols)
-            full_df = full_df.drop(columns=constant_cols)
 
         def build_dataset(data_df: pd.DataFrame) -> TabularDataset:
             return TabularDataset(
@@ -298,12 +359,45 @@ class DataHelper:
                 data_df=data_df,
             )
 
+        train_csv = dataset_dir / "train.csv"
+        test_csv = dataset_dir / "test.csv"
+        if train_csv.exists() and test_csv.exists():
+            train_df = pd.read_csv(train_csv)
+            test_df = pd.read_csv(test_csv)
+            full_df = pd.concat([train_df, test_df], axis=0, ignore_index=True)
+            constant_cols = [
+                col for col in full_df.columns if col != target_col and full_df[col].nunique(dropna=False) <= 1
+            ]
+            if constant_cols:
+                train_df = train_df.drop(columns=constant_cols)
+                test_df = test_df.drop(columns=constant_cols)
+                full_df = full_df.drop(columns=constant_cols)
+
+            return {
+                "full_set": build_dataset(full_df),
+                "train_set": build_dataset(train_df),
+                "test_set": build_dataset(test_df),
+                "predefined_split": True,
+                "dataset_dir": str(dataset_dir),
+            }
+
+        single_csv = cls.find_single_dataset_csv(dataset_dir)
+        if single_csv is None:
+            raise ValueError(
+                f"Cannot find supported local dataset files in {dataset_dir}. "
+                "Expected either train.csv/test.csv or exactly one dataset CSV."
+            )
+
+        full_df = pd.read_csv(single_csv)
+        constant_cols = [col for col in full_df.columns if col != target_col and full_df[col].nunique(dropna=False) <= 1]
+        if constant_cols:
+            full_df = full_df.drop(columns=constant_cols)
+
         return {
             "full_set": build_dataset(full_df),
-            "train_set": build_dataset(train_df),
-            "test_set": build_dataset(test_df),
-            "predefined_split": True,
+            "predefined_split": False,
             "dataset_dir": str(dataset_dir),
+            "source_csv": str(single_csv),
         }
 
     @staticmethod
@@ -345,27 +439,30 @@ class DataHelper:
     def split_full_dataset(args, full_set) -> dict:
         if isinstance(full_set, dict):
             dataset_dict = full_set
-            train_val_set = dataset_dict["train_set"]
-            test_set = dataset_dict["test_set"]
+            if not dataset_dict.get("predefined_split", False):
+                full_set = dataset_dict["full_set"]
+            else:
+                train_val_set = dataset_dict["train_set"]
+                test_set = dataset_dict["test_set"]
 
-            split_dict_val = train_val_set.split(
-                split_mode=args.split_mode,
-                test_size=args.valid_size,
-                random_state=args.valid_id,
-            )
-            train_set, valid_set = split_dict_val["train_set"], split_dict_val["test_set"]
-            indices_train, indices_valid = split_dict_val["indices_train"], split_dict_val["indices_test"]
-            indices_test = dataset_dict["test_set"].data_df.index.to_numpy()
+                split_dict_val = train_val_set.split(
+                    split_mode=args.split_mode,
+                    test_size=args.valid_size,
+                    random_state=args.valid_id,
+                )
+                train_set, valid_set = split_dict_val["train_set"], split_dict_val["test_set"]
+                indices_train, indices_valid = split_dict_val["indices_train"], split_dict_val["indices_test"]
+                indices_test = dataset_dict["test_set"].data_df.index.to_numpy()
 
-            return {
-                "full_set": dataset_dict["full_set"],
-                "train_set": train_set,
-                "valid_set": valid_set,
-                "test_set": test_set,
-                "indices_train": indices_train,
-                "indices_valid": indices_valid,
-                "indices_test": indices_test,
-            }
+                return {
+                    "full_set": dataset_dict["full_set"],
+                    "train_set": train_set,
+                    "valid_set": valid_set,
+                    "test_set": test_set,
+                    "indices_train": indices_train,
+                    "indices_valid": indices_valid,
+                    "indices_test": indices_test,
+                }
 
         # ===== Split the dataset into Train/Val/Test =====
         split_dict_test = full_set.split(

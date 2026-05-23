@@ -17,6 +17,20 @@ LOCAL_DATASET_TASKS = {
     "income": "classification",
     "sick": "classification",
     "us_location": "classification",
+    "credit": "classification",
+    "bank_marketing": "classification",
+    "adult": "classification",
+    "agrawal": "classification",
+    "sea": "classification",
+    "gas_sensor": "classification",
+    "gaussian_mixture": "classification",
+    "stagger": "classification",
+    "hyperplane": "classification",
+    "mixed": "classification",
+    "sine": "classification",
+    "electricity": "classification",
+    "covertype": "classification",
+    "magic_telescope": "classification",
 }
 
 
