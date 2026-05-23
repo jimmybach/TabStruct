@@ -25,7 +25,7 @@ class TabDDPM(BaseTabEvalConditionalGenerator):
         params_arch = {}
 
         params_optim = {
-            "n_iter": 1000,
+            "n_iter": 2000,
             "lr": 2e-3,
             "weight_decay": 1e-4,
             "num_timesteps": 1e3,
