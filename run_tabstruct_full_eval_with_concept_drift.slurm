@@ -9,7 +9,7 @@
 #SBATCH --time=48:00:00
 #SBATCH --partition=hima
 #SBATCH --gres=gpu:1
-#SBATCH --array=0-41
+#SBATCH --array=0-167
 
 set -euo pipefail
 
@@ -28,7 +28,6 @@ export PIP_CACHE_DIR="$WORKROOT/pip-cache"
 export UV_CACHE_DIR="$WORKROOT/uv-cache"
 mkdir -p "$TMPDIR" "$PIP_CACHE_DIR" "$UV_CACHE_DIR" "$WORKROOT/slurm_logs"
 
-MODELS=(tabsyn tabdiff tabddpm)
 DATASET_PATHS=(
   "$DATA_ROOT/diabetes"
   "$DATA_ROOT/house"
@@ -47,10 +46,31 @@ DATASET_PATHS=(
 )
 
 NUM_DATASETS=${#DATASET_PATHS[@]}
-MODEL_INDEX=$((SLURM_ARRAY_TASK_ID / NUM_DATASETS))
-DATASET_INDEX=$((SLURM_ARRAY_TASK_ID % NUM_DATASETS))
+TABSYN_TASKS=$NUM_DATASETS
+TABDIFF_TASKS=$NUM_DATASETS
+TABDDPM_REPEATS=10
+TABDDPM_TASKS=$((NUM_DATASETS * TABDDPM_REPEATS))
 
-MODEL="${MODELS[$MODEL_INDEX]}"
+TASK_ID=$SLURM_ARRAY_TASK_ID
+
+if (( TASK_ID < TABSYN_TASKS )); then
+  MODEL="tabsyn"
+  DATASET_INDEX=$TASK_ID
+  TEST_ID=0
+  VALID_ID=0
+elif (( TASK_ID < TABSYN_TASKS + TABDIFF_TASKS )); then
+  MODEL="tabdiff"
+  DATASET_INDEX=$((TASK_ID - TABSYN_TASKS))
+  TEST_ID=0
+  VALID_ID=0
+else
+  MODEL="tabddpm"
+  TABDDPM_OFFSET=$((TASK_ID - TABSYN_TASKS - TABDIFF_TASKS))
+  DATASET_INDEX=$((TABDDPM_OFFSET / TABDDPM_REPEATS))
+  TEST_ID=$((TABDDPM_OFFSET % TABDDPM_REPEATS))
+  VALID_ID=0
+fi
+
 DATASET_PATH="${DATASET_PATHS[$DATASET_INDEX]}"
 DATASET_KEY="$(basename "$DATASET_PATH")"
 
@@ -62,7 +82,7 @@ TABDIFF_SYN_CSV="$TABDIFF_ROOT/$DATASET_KEY/learnable_schedule/2000/samples.csv"
 
 cd "$TABSTRUCT_REPO"
 
-echo "Running model=$MODEL dataset_key=$DATASET_KEY"
+echo "Running model=$MODEL dataset_key=$DATASET_KEY test_id=$TEST_ID valid_id=$VALID_ID"
 echo "Dataset path: $DATASET_PATH"
 echo "Host: $(hostname)"
 nvidia-smi || true
@@ -159,9 +179,11 @@ if [[ "$MODEL" == "tabddpm" ]]; then
     --save_model \
     --dataset "$DATASET_PATH" \
     --dataset_root "$DATA_ROOT" \
+    --test_id "$TEST_ID" \
+    --valid_id "$VALID_ID" \
     --valid_size 0.1 \
     --enable_eval_structure \
-    --tags hpc tabddpm full-eval "$DATASET_KEY"
+    --tags hpc tabddpm full-eval "$DATASET_KEY" "test-$TEST_ID"
 
 elif [[ "$MODEL" == "tabsyn" ]]; then
   if [[ ! -f "$TABSYN_SYN_CSV" ]]; then
@@ -179,6 +201,8 @@ elif [[ "$MODEL" == "tabsyn" ]]; then
     --eval_only \
     --dataset "$DATASET_PATH" \
     --dataset_root "$DATA_ROOT" \
+    --test_id "$TEST_ID" \
+    --valid_id "$VALID_ID" \
     --valid_size 0.1 \
     --synthetic_data_path "$NORMALIZED_TABSYN_CSV" \
     --enable_eval_structure \
@@ -200,6 +224,8 @@ else
     --eval_only \
     --dataset "$DATASET_PATH" \
     --dataset_root "$DATA_ROOT" \
+    --test_id "$TEST_ID" \
+    --valid_id "$VALID_ID" \
     --valid_size 0.1 \
     --synthetic_data_path "$NORMALIZED_TABDIFF_CSV" \
     --enable_eval_structure \
