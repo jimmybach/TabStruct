@@ -163,6 +163,31 @@ class GeneratorHelper(BaseModelHelper):
                     y_syn[target_col] = numeric_values.astype(class_series.dtype)
                 return y_syn
 
+            if pd.api.types.is_object_dtype(class_series) or pd.api.types.is_string_dtype(class_series):
+                numeric_values = pd.to_numeric(y_series, errors="coerce")
+                if numeric_values.isna().any():
+                    continue
+
+                class_as_numeric = pd.to_numeric(class_series, errors="coerce")
+                if class_as_numeric.isna().any():
+                    continue
+
+                if pd.api.types.is_integer_dtype(class_as_numeric):
+                    rounded = numeric_values.round()
+                    if not (numeric_values == rounded).all():
+                        continue
+                    numeric_values = rounded
+
+                numeric_to_class = {}
+                for numeric_value, class_value in zip(class_as_numeric.tolist(), class_series.tolist()):
+                    numeric_to_class[numeric_value] = class_value
+
+                if not numeric_values.isin(list(numeric_to_class.keys())).all():
+                    continue
+
+                y_syn[target_col] = numeric_values.map(numeric_to_class).astype(class_series.dtype)
+                return y_syn
+
         return y_syn
 
     @staticmethod
