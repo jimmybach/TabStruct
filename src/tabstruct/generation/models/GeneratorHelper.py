@@ -137,6 +137,35 @@ class GeneratorHelper(BaseModelHelper):
         return synthetic_data_path
 
     @staticmethod
+    def _coerce_classification_target_dtype(y_syn: pd.DataFrame, target_scaler_list: list):
+        target_col = y_syn.columns[0]
+        y_series = y_syn[target_col]
+
+        for target_scaler in target_scaler_list:
+            encoder = getattr(target_scaler, "_encoder", None)
+            classes = getattr(encoder, "classes_", None)
+            if classes is None or len(classes) == 0:
+                continue
+
+            class_series = pd.Series(classes)
+            if pd.api.types.is_numeric_dtype(class_series):
+                numeric_values = pd.to_numeric(y_series, errors="coerce")
+                if numeric_values.isna().any():
+                    continue
+
+                # Preserve integer labels when the encoder was fit on integer classes.
+                if pd.api.types.is_integer_dtype(class_series):
+                    rounded = numeric_values.round()
+                    if not (numeric_values == rounded).all():
+                        continue
+                    y_syn[target_col] = rounded.astype(class_series.dtype)
+                else:
+                    y_syn[target_col] = numeric_values.astype(class_series.dtype)
+                return y_syn
+
+        return y_syn
+
+    @staticmethod
     def load_synthetic_data(args, synthetic_data_path):
         # === Load the synthetic samples ===
         synthetic_df = pd.read_csv(synthetic_data_path)
@@ -192,6 +221,9 @@ class GeneratorHelper(BaseModelHelper):
         )
         X_syn = X_syn_original.copy(deep=True)
         y_syn = y_syn_original.copy(deep=True)
+
+        if args.task == "classification":
+            y_syn = GeneratorHelper._coerce_classification_target_dtype(y_syn, args.target_scaler_list)
 
         # === Preprocess the synthetic samples with scalers fitted on the real training data ===
         for feature_scaler in args.feature_scaler_list:
