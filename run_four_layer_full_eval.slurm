@@ -48,7 +48,13 @@ done
 FOUR_LAYER_DATA_ROOT="$FOUR_LAYER_ROOT/data"
 FOUR_LAYER_INFO_ROOT="$FOUR_LAYER_ROOT/Info"
 
-mapfile -t SOURCE_CSVS < <(find "$FOUR_LAYER_DATA_ROOT" -type f -name '*.csv' | sort)
+mapfile -t SOURCE_CSVS < <(
+  find "$FOUR_LAYER_ROOT" -type f -name '*.csv' \
+    ! -path "$FOUR_LAYER_INFO_ROOT/*" \
+    ! -path "$FOUR_LAYER_STAGE_ROOT/*" \
+    ! -path "$FOUR_LAYER_DATA_ROOT/*" \
+    | sort
+)
 
 NUM_DATASETS=${#SOURCE_CSVS[@]}
 if (( NUM_DATASETS == 0 )); then
@@ -56,7 +62,7 @@ if (( NUM_DATASETS == 0 )); then
   exit 1
 fi
 
-echo "Discovered $NUM_DATASETS four-layer datasets under $FOUR_LAYER_DATA_ROOT"
+echo "Discovered $NUM_DATASETS four-layer datasets under $FOUR_LAYER_ROOT"
 printf '  %s\n' "${SOURCE_CSVS[@]:0:5}"
 
 TABSYN_TASKS=$NUM_DATASETS
@@ -80,9 +86,7 @@ if (( DATASET_INDEX < 0 || DATASET_INDEX >= NUM_DATASETS )); then
 fi
 
 SOURCE_CSV="${SOURCE_CSVS[$DATASET_INDEX]}"
-rel_path="${SOURCE_CSV#"$FOUR_LAYER_DATA_ROOT"/}"
-rel_path="${rel_path%.csv}"
-DATASET_KEY="${rel_path//\//__}"
+DATASET_KEY="$(basename "${SOURCE_CSV%.csv}")"
 STAGE_DATASET_DIR="$FOUR_LAYER_STAGE_ROOT/$DATASET_KEY"
 STAGE_CSV="$STAGE_DATASET_DIR/$DATASET_KEY.csv"
 METADATA_JSON="$FOUR_LAYER_INFO_ROOT/$DATASET_KEY.json"
