@@ -30,7 +30,9 @@ export PIP_CACHE_DIR="$WORKROOT/pip-cache"
 export UV_CACHE_DIR="$WORKROOT/uv-cache"
 mkdir -p "$TMPDIR" "$PIP_CACHE_DIR" "$UV_CACHE_DIR" "$WORKROOT/slurm_logs" "$FOUR_LAYER_DATA_ROOT" "$FOUR_LAYER_INFO_ROOT"
 
-mapfile -t SOURCE_CSVS < <(find "$FOUR_LAYER_ROOT"/Track* -maxdepth 1 -type f -name '*.csv' | sort)
+# The four-layer benchmark names datasets by the filename stem, e.g.
+# fl4_TrackA_Controlled_SCM_noshift_er_s11
+mapfile -t SOURCE_CSVS < <(find "$FOUR_LAYER_ROOT"/Track* -maxdepth 1 -type f -name 'fl4_*.csv' | sort)
 
 NUM_DATASETS=${#SOURCE_CSVS[@]}
 if (( NUM_DATASETS == 0 )); then
