@@ -21,18 +21,34 @@ WORKROOT="/sciclone/scr20/jpbach"
 TABSTRUCT_REPO="$HOME/TabStruct"
 TABSTRUCT_PYTHON="/sciclone/scr10/jpbach/conda-envs/tabstruct/bin/python"
 
-FOUR_LAYER_ROOT="$HOME/four_layer_datasets_csv_only/four_layer_datasets_csv_only"
+FOUR_LAYER_ROOT="${FOUR_LAYER_ROOT:-$HOME/four_layer_datasets_csv_only/four_layer_datasets_csv_only}"
+FOUR_LAYER_ROOT_CANDIDATES=(
+  "$FOUR_LAYER_ROOT"
+  "/sciclone/scr20/jpbach/four_layer_datasets_csv_only/four_layer_datasets_csv_only"
+  "/sciclone/home/jpbach/four_layer_datasets_csv_only/four_layer_datasets_csv_only"
+)
 FOUR_LAYER_DATA_ROOT="$FOUR_LAYER_ROOT/data"
 FOUR_LAYER_INFO_ROOT="$FOUR_LAYER_ROOT/Info"
+FOUR_LAYER_STAGE_ROOT="$FOUR_LAYER_ROOT/staged"
 
 export TMPDIR="$WORKROOT/tmp"
 export PIP_CACHE_DIR="$WORKROOT/pip-cache"
 export UV_CACHE_DIR="$WORKROOT/uv-cache"
-mkdir -p "$TMPDIR" "$PIP_CACHE_DIR" "$UV_CACHE_DIR" "$WORKROOT/slurm_logs" "$FOUR_LAYER_DATA_ROOT" "$FOUR_LAYER_INFO_ROOT"
+mkdir -p "$TMPDIR" "$PIP_CACHE_DIR" "$UV_CACHE_DIR" "$WORKROOT/slurm_logs" "$FOUR_LAYER_DATA_ROOT" "$FOUR_LAYER_INFO_ROOT" "$FOUR_LAYER_STAGE_ROOT"
 
 # The four-layer benchmark names datasets by the filename stem, e.g.
 # fl4_TrackA_Controlled_SCM_noshift_er_s11
-mapfile -t SOURCE_CSVS < <(find "$FOUR_LAYER_ROOT"/Track* -maxdepth 1 -type f -name 'fl4_*.csv' | sort)
+for candidate_root in "${FOUR_LAYER_ROOT_CANDIDATES[@]}"; do
+  if [[ -d "$candidate_root" ]]; then
+    FOUR_LAYER_ROOT="$candidate_root"
+    break
+  fi
+done
+
+FOUR_LAYER_DATA_ROOT="$FOUR_LAYER_ROOT/data"
+FOUR_LAYER_INFO_ROOT="$FOUR_LAYER_ROOT/Info"
+
+mapfile -t SOURCE_CSVS < <(find "$FOUR_LAYER_DATA_ROOT" -maxdepth 1 -type f | sort)
 
 NUM_DATASETS=${#SOURCE_CSVS[@]}
 if (( NUM_DATASETS == 0 )); then
@@ -61,8 +77,9 @@ if (( DATASET_INDEX < 0 || DATASET_INDEX >= NUM_DATASETS )); then
 fi
 
 SOURCE_CSV="${SOURCE_CSVS[$DATASET_INDEX]}"
-DATASET_KEY="$(basename "$SOURCE_CSV" .csv)"
-STAGE_DATASET_DIR="$FOUR_LAYER_DATA_ROOT/$DATASET_KEY"
+DATASET_KEY="$(basename "$SOURCE_CSV")"
+DATASET_KEY="${DATASET_KEY%.*}"
+STAGE_DATASET_DIR="$FOUR_LAYER_STAGE_ROOT/$DATASET_KEY"
 STAGE_CSV="$STAGE_DATASET_DIR/$DATASET_KEY.csv"
 METADATA_JSON="$FOUR_LAYER_INFO_ROOT/$DATASET_KEY.json"
 
