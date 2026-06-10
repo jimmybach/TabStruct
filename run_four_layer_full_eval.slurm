@@ -48,29 +48,11 @@ done
 FOUR_LAYER_DATA_ROOT="$FOUR_LAYER_ROOT/data"
 FOUR_LAYER_INFO_ROOT="$FOUR_LAYER_ROOT/Info"
 
-mapfile -t SOURCE_ITEMS < <(find "$FOUR_LAYER_DATA_ROOT" -mindepth 1 -maxdepth 1 \( -type f -o -type l -o -type d \) | sort)
-
-SOURCE_CSVS=()
-for item in "${SOURCE_ITEMS[@]}"; do
-  if [[ -f "$item" || -L "$item" ]]; then
-    SOURCE_CSVS+=("$item")
-    continue
-  fi
-
-  if [[ -d "$item" ]]; then
-    candidate_csv="$(find "$item" -maxdepth 2 -type f | sort | head -n 1)"
-    if [[ -n "$candidate_csv" ]]; then
-      SOURCE_CSVS+=("$candidate_csv")
-      continue
-    fi
-  fi
-done
+mapfile -t SOURCE_CSVS < <(find "$FOUR_LAYER_DATA_ROOT" -type f -name '*.csv' | sort)
 
 NUM_DATASETS=${#SOURCE_CSVS[@]}
 if (( NUM_DATASETS == 0 )); then
   echo "No four-layer CSV datasets found under $FOUR_LAYER_ROOT" >&2
-  echo "Discovered entries:" >&2
-  printf '  %s\n' "${SOURCE_ITEMS[@]}" >&2
   exit 1
 fi
 
@@ -98,8 +80,9 @@ if (( DATASET_INDEX < 0 || DATASET_INDEX >= NUM_DATASETS )); then
 fi
 
 SOURCE_CSV="${SOURCE_CSVS[$DATASET_INDEX]}"
-DATASET_KEY="$(basename "$SOURCE_CSV")"
-DATASET_KEY="${DATASET_KEY%.*}"
+rel_path="${SOURCE_CSV#"$FOUR_LAYER_DATA_ROOT"/}"
+rel_path="${rel_path%.csv}"
+DATASET_KEY="${rel_path//\//__}"
 STAGE_DATASET_DIR="$FOUR_LAYER_STAGE_ROOT/$DATASET_KEY"
 STAGE_CSV="$STAGE_DATASET_DIR/$DATASET_KEY.csv"
 METADATA_JSON="$FOUR_LAYER_INFO_ROOT/$DATASET_KEY.json"
