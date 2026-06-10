@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -340,21 +341,55 @@ class DataHelper:
         return None
 
     @classmethod
+    def find_local_dataset_metadata(cls, dataset_dir: Path, dataset_name: str) -> tuple[dict | None, Path | None]:
+        """Find a metadata JSON file for a local dataset.
+
+        We support a few layouts:
+        - dataset_dir/Info/<dataset_name>.json
+        - parent/Info/<dataset_name>.json
+        - grandparent/Info/<dataset_name>.json
+        """
+        search_roots = [dataset_dir, dataset_dir.parent, dataset_dir.parent.parent]
+        for root in search_roots:
+            candidate = root / "Info" / f"{dataset_name}.json"
+            if candidate.exists():
+                with open(candidate, "r", encoding="utf-8") as f:
+                    return json.load(f), candidate
+        return None, None
+
+    @classmethod
     def load_local_dataset(cls, args, dataset_dir: Path):
         dataset_name = Path(args.dataset).name
-        if dataset_name not in cls.LOCAL_DATASET_CONFIG:
-            raise ValueError(
-                f"Unsupported local dataset '{dataset_name}'. "
-                f"Supported local datasets: {sorted(cls.LOCAL_DATASET_CONFIG.keys())}"
-            )
+        dataset_config = cls.LOCAL_DATASET_CONFIG.get(dataset_name)
+        if dataset_config is not None:
+            target_col = dataset_config["target_col"]
+            task_type = dataset_config["task"]
+        else:
+            metadata, metadata_path = cls.find_local_dataset_metadata(dataset_dir, dataset_name)
+            if metadata is None:
+                raise ValueError(
+                    f"Unsupported local dataset '{dataset_name}'. "
+                    f"Supported local datasets: {sorted(cls.LOCAL_DATASET_CONFIG.keys())}. "
+                    f"Also expected a metadata JSON at {dataset_dir}/Info/{dataset_name}.json "
+                    f"or one of its parent Info directories."
+                )
 
-        dataset_config = cls.LOCAL_DATASET_CONFIG[dataset_name]
-        target_col = dataset_config["target_col"]
+            target_col = metadata.get("target_col")
+            if not target_col:
+                raise ValueError(
+                    f"Metadata file {metadata_path} does not define 'target_col' for dataset '{dataset_name}'."
+                )
+
+            task_type = metadata.get("task", metadata.get("task_type", args.task))
+            if task_type == "binclass" or task_type == "multiclass":
+                task_type = "classification"
+            elif task_type != "regression":
+                task_type = args.task
 
         def build_dataset(data_df: pd.DataFrame) -> TabularDataset:
             return TabularDataset(
                 dataset_name=dataset_name,
-                task_type=args.task,
+                task_type=task_type,
                 target_col=target_col,
                 data_df=data_df,
             )
