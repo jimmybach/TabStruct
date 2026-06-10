@@ -48,13 +48,34 @@ done
 FOUR_LAYER_DATA_ROOT="$FOUR_LAYER_ROOT/data"
 FOUR_LAYER_INFO_ROOT="$FOUR_LAYER_ROOT/Info"
 
-mapfile -t SOURCE_CSVS < <(find "$FOUR_LAYER_DATA_ROOT" -maxdepth 1 -type f | sort)
+mapfile -t SOURCE_ITEMS < <(find "$FOUR_LAYER_DATA_ROOT" -mindepth 1 -maxdepth 1 \( -type f -o -type l -o -type d \) | sort)
+
+SOURCE_CSVS=()
+for item in "${SOURCE_ITEMS[@]}"; do
+  if [[ -f "$item" || -L "$item" ]]; then
+    SOURCE_CSVS+=("$item")
+    continue
+  fi
+
+  if [[ -d "$item" ]]; then
+    candidate_csv="$(find "$item" -maxdepth 2 -type f | sort | head -n 1)"
+    if [[ -n "$candidate_csv" ]]; then
+      SOURCE_CSVS+=("$candidate_csv")
+      continue
+    fi
+  fi
+done
 
 NUM_DATASETS=${#SOURCE_CSVS[@]}
 if (( NUM_DATASETS == 0 )); then
   echo "No four-layer CSV datasets found under $FOUR_LAYER_ROOT" >&2
+  echo "Discovered entries:" >&2
+  printf '  %s\n' "${SOURCE_ITEMS[@]}" >&2
   exit 1
 fi
+
+echo "Discovered $NUM_DATASETS four-layer datasets under $FOUR_LAYER_DATA_ROOT"
+printf '  %s\n' "${SOURCE_CSVS[@]:0:5}"
 
 TABSYN_TASKS=$NUM_DATASETS
 TABDIFF_TASKS=$NUM_DATASETS
