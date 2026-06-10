@@ -168,13 +168,9 @@ metadata = {
 with open(metadata_json, "w", encoding="utf-8") as f:
     json.dump(metadata, f, indent=4)
 
-print(f"TARGET_COL={target_col}")
-print(f"TASK={task}")
-print(f"NUM_CLASSES={num_classes}")
-print(f"Metadata written: {metadata_json}")
-print(f"Stage csv: {stage_csv}")
-print(f"Source shape: {df.shape}")
-print(f"Columns: {columns}")
+print(f"TARGET_COL={target_col!r}")
+print(f"TASK={task!r}")
+print(f"NUM_CLASSES={num_classes!r}")
 PY
 }
 
