@@ -86,7 +86,11 @@ if (( DATASET_INDEX < 0 || DATASET_INDEX >= NUM_DATASETS )); then
 fi
 
 SOURCE_CSV="${SOURCE_CSVS[$DATASET_INDEX]}"
-DATASET_KEY="$(basename "${SOURCE_CSV%.csv}")"
+rel_source="${SOURCE_CSV#"$FOUR_LAYER_ROOT"/}"
+rel_source="${rel_source%.csv}"
+rel_source="${rel_source//-/_}"
+rel_source="${rel_source//\//_}"
+DATASET_KEY="fl4_${rel_source}"
 STAGE_DATASET_DIR="$FOUR_LAYER_STAGE_ROOT/$DATASET_KEY"
 STAGE_CSV="$STAGE_DATASET_DIR/$DATASET_KEY.csv"
 METADATA_JSON="$FOUR_LAYER_INFO_ROOT/$DATASET_KEY.json"
