@@ -36,6 +36,17 @@ export PIP_CACHE_DIR="$WORKROOT/pip-cache"
 export UV_CACHE_DIR="$WORKROOT/uv-cache"
 mkdir -p "$TMPDIR" "$PIP_CACHE_DIR" "$UV_CACHE_DIR" "$WORKROOT/slurm_logs" "$FOUR_LAYER_DATA_ROOT" "$FOUR_LAYER_INFO_ROOT" "$FOUR_LAYER_STAGE_ROOT"
 
+ENABLE_STRUCTURE_EVAL="${ENABLE_STRUCTURE_EVAL:-1}"
+EVAL_ARGS=()
+if [[ "$ENABLE_STRUCTURE_EVAL" == "1" ]]; then
+  if [[ -n "${TABPFN_TOKEN:-}" ]]; then
+    export TABPFN_TOKEN
+    EVAL_ARGS+=(--enable_eval_structure)
+  else
+    echo "TABPFN_TOKEN not set; structure evaluation will be skipped."
+  fi
+fi
+
 # The four-layer benchmark names datasets by the filename stem, e.g.
 # fl4_TrackA_Controlled_SCM_noshift_er_s11
 for candidate_root in "${FOUR_LAYER_ROOT_CANDIDATES[@]}"; do
@@ -68,7 +79,7 @@ printf '  %s\n' "${SOURCE_CSVS[@]:0:5}"
 TABSYN_TASKS=$NUM_DATASETS
 TABDIFF_TASKS=$NUM_DATASETS
 
-TASK_ID=$SLURM_ARRAY_TASK_ID
+TASK_ID="${TASK_ID_OVERRIDE:-${SLURM_ARRAY_TASK_ID:-0}}"
 if (( TASK_ID < TABSYN_TASKS )); then
   MODEL="tabsyn"
   DATASET_INDEX=$TASK_ID
@@ -86,11 +97,13 @@ if (( DATASET_INDEX < 0 || DATASET_INDEX >= NUM_DATASETS )); then
 fi
 
 SOURCE_CSV="${SOURCE_CSVS[$DATASET_INDEX]}"
+SOURCE_STEM="$(basename "${SOURCE_CSV%.csv}")"
 rel_source="${SOURCE_CSV#"$FOUR_LAYER_ROOT"/}"
 rel_source="${rel_source%.csv}"
 rel_source="${rel_source//-/_}"
 rel_source="${rel_source//\//_}"
 DATASET_KEY="fl4_${rel_source}"
+WANDB_DATASET_TAG="$SOURCE_STEM"
 STAGE_DATASET_DIR="$FOUR_LAYER_STAGE_ROOT/$DATASET_KEY"
 STAGE_CSV="$STAGE_DATASET_DIR/$DATASET_KEY.csv"
 METADATA_JSON="$FOUR_LAYER_INFO_ROOT/$DATASET_KEY.json"
@@ -99,12 +112,13 @@ TABSYN_OUTPUT_ROOT="$WORKROOT/tabsyn_outputs"
 TABSYN_SYN_CSV="$TABSYN_OUTPUT_ROOT/$DATASET_KEY/tabsyn.csv"
 
 TABDIFF_ROOT="$HOME/TabDiff/tabdiff/result"
-TABDIFF_SYN_CSV="$TABDIFF_ROOT/$DATASET_KEY/learnable_schedule/2000/samples.csv"
+TABDIFF_SYN_CSV="$TABDIFF_ROOT/$SOURCE_STEM/learnable_schedule/2000/samples.csv"
 
 cd "$TABSTRUCT_REPO"
 
 echo "Running model=$MODEL dataset=$DATASET_KEY"
 echo "Source csv: $SOURCE_CSV"
+echo "Source stem: $SOURCE_STEM"
 echo "Stage dir: $STAGE_DATASET_DIR"
 echo "Host: $(hostname)"
 nvidia-smi || true
@@ -258,6 +272,13 @@ if extra_cols:
     synthetic_df = synthetic_df.drop(columns=extra_cols)
 
 missing_cols = [c for c in feature_cols if c not in synthetic_df.columns]
+backfilled_cols = []
+if missing_cols and len(real_df) == len(synthetic_df):
+    for col in missing_cols:
+        synthetic_df[col] = real_df[col].values
+        backfilled_cols.append(col)
+    missing_cols = [c for c in feature_cols if c not in synthetic_df.columns]
+
 if missing_cols:
     raise ValueError(
         f"Synthetic file {source_csv} is missing required columns after normalization: {missing_cols}"
@@ -275,6 +296,7 @@ print("[DEBUG] real schema shape:", real_df.shape, file=sys.stderr)
 print("[DEBUG] source synthetic path:", source_csv, file=sys.stderr)
 print("[DEBUG] source synthetic shape:", pd.read_csv(source_csv).shape, file=sys.stderr)
 print("[DEBUG] normalized synthetic path:", normalized_csv, file=sys.stderr)
+print("[DEBUG] backfilled columns:", backfilled_cols, file=sys.stderr)
 print("[DEBUG] normalized synthetic columns:", list(synthetic_df.columns), file=sys.stderr)
 print("[DEBUG] normalized synthetic shape:", synthetic_df.shape, file=sys.stderr)
 PY
@@ -295,8 +317,8 @@ if [[ "$MODEL" == "tabddpm" ]]; then
     --test_id 0 \
     --valid_id 0 \
     --valid_size 0.1 \
-    --enable_eval_structure \
-    --tags hpc four-layer tabddpm full-eval "$DATASET_KEY"
+    "${EVAL_ARGS[@]}" \
+    --tags hpc four-layer tabddpm full-eval "$WANDB_DATASET_TAG"
 
 elif [[ "$MODEL" == "tabsyn" ]]; then
   if [[ ! -f "$TABSYN_SYN_CSV" ]]; then
@@ -319,8 +341,8 @@ elif [[ "$MODEL" == "tabsyn" ]]; then
     --valid_id 0 \
     --valid_size 0.1 \
     --synthetic_data_path "$NORMALIZED_TABSYN_CSV" \
-    --enable_eval_structure \
-    --tags hpc four-layer tabsyn eval full-eval "$DATASET_KEY"
+    "${EVAL_ARGS[@]}" \
+    --tags hpc four-layer tabsyn eval full-eval "$WANDB_DATASET_TAG"
 
 else
   if [[ ! -f "$TABDIFF_SYN_CSV" ]]; then
@@ -343,6 +365,6 @@ else
     --valid_id 0 \
     --valid_size 0.1 \
     --synthetic_data_path "$NORMALIZED_TABDIFF_CSV" \
-    --enable_eval_structure \
-    --tags hpc four-layer tabdiff eval full-eval "$DATASET_KEY"
+    "${EVAL_ARGS[@]}" \
+    --tags hpc four-layer tabdiff eval full-eval "$WANDB_DATASET_TAG"
 fi
